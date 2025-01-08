@@ -6,20 +6,20 @@ CI Inovador - Polo UFC
 `timescale 1ns/10ps
 
 module decodificador_pt2272(
-input logic  clk, // 3MHz conforme especificação
-input logic reset, // reset ativo alto
-input logic [7:0] A, // endereço de entrada, trinário
-input logic cod_i,  // dado codificado de entrada
-output logic [3:0] D, // dado recebido registrado
-output logic dv       // sinalização de novo dado valido recebido, sincrono ao mesmo dominio de clock da saída "D"
+input logic  clk,       // 3MHz conforme especificação
+input logic reset,      // reset ativo alto
+input logic [7:0] A,    // endereço de entrada, trinário
+input logic cod_i,      // dado codificado de entrada
+output logic [3:0] D,   // dado recebido registrado
+output logic dv         // sinalização de novo dado valido recebido, sincrono ao mesmo dominio de clock da saída "D"
 );
 
-logic [3:0] prox_estado, estado_atual; // usados para administrar os estados
-logic [6:0] counter, counter_ff;  //contadores
-logic [15:0] Ax_recebido, Ax_lido; //bits de endereços. Bit 0 = 00. Bit 1 = 11. Bit F = 01. Usados para comparar o A recebido e o lido
-logic [3:0] Dx; // usado para guardar o valor de D temporariamente
-logic [7:0] A_F, A_01; //saídas de comp_endereco, indicam se tem F na entrada A
-logic osc; // 12kHz conforme especificação do oscilador
+logic [3:0] prox_estado, estado_atual;  // usados para administrar os estados
+logic [6:0] counter;                    //contador
+logic [15:0] Ax_recebido, Ax_lido;      //bits de endereços. Bit 0 = 00. Bit 1 = 11. Bit F = 01. Usados para comparar o A recebido e o lido
+logic [3:0] Dx;                         // usado para guardar o valor de D temporariamente
+logic [7:0] A_F, A_01;                  //saídas de comp_endereco, indicam se tem F na entrada A
+logic osc;                              // 12kHz conforme especificação do oscilador
 
 // Instancia do bloco comp_endereco
 comp_endereco Ax01F(.A(A), .A_01(A_01), .A_F(A_F));
@@ -30,21 +30,28 @@ gera_ax gera_ax(.A_F(A_F), .A_01(A_01), .Ax(Ax_recebido));
 // Instancia do bloco para gerar o OSC na frequencia correta a partir do CLK
 oscilador osc1(.clk(clk), .rst(reset), .osc(osc));
 
-// Bloco FF para atualizar o estado e o contador
+/*
+Bloco FF para atualizar o estado e o contador junto com o oscilador.
+Além disso, nesse bloco o contador é zerado quando necessário, e define-se o valor das saída D e dv.
+*/
 always_ff @(posedge osc or posedge reset) begin : atualiza_estado_e_contadores
     if(reset) begin
         estado_atual <= 0;
+        counter <= 0;
         D <= 4'b0;
         dv <= 0;
     end
     else begin 
         estado_atual <= prox_estado;
-        counter_ff <= counter;
+        counter <= counter + 1;
         if(estado_atual==14 && Ax_lido==Ax_recebido) begin
             D <= Dx;
             dv <= 1;
         end 
         else dv <= 0;
+        
+        if (counter==31 && estado_atual!=13) counter<=0; // Zera o contador em 32 ao final da transmissão dos bits de endereço e dados
+        if (counter==127 && estado_atual==13) counter<=0; // Zera o contador em 128 no SYNC
     end
 end
 
@@ -55,7 +62,6 @@ a ser lido, incluindo o SYNC, e o final para atualizar o valor de D e subir dv.
 */
 always_comb begin
     prox_estado = estado_atual;
-    counter = 0;
 
     if(reset) begin
         prox_estado = 0;
@@ -68,125 +74,77 @@ always_comb begin
             prox_estado = 1;
         end
         1: begin //A0
-            counter = counter_ff + 1;
-            if (counter_ff==5 && cod_i==1) Ax_lido[1]=1;
-            if (counter_ff==21 && cod_i==1) Ax_lido[0]=1;
-            if (counter_ff==31) begin
-                counter = 0;
-                prox_estado = 2;
-            end
+            Dx = 4'b0;
+            if (counter==7 && cod_i==1) Ax_lido[1]=1;
+            if (counter==24 && cod_i==1) Ax_lido[0]=1;
+            if (counter==31) prox_estado = 2;
         end
         2: begin //A1
-            counter = counter_ff + 1;
-            if (counter_ff==5 && cod_i==1) Ax_lido[3]=1;
-            if (counter_ff==21 && cod_i==1) Ax_lido[2]=1;
-            if (counter_ff==31) begin
-                counter = 0;
-                prox_estado = 3;
-            end
+            Dx = 4'b0;
+            if (counter==7 && cod_i==1) Ax_lido[3]=1;
+            if (counter==24 && cod_i==1) Ax_lido[2]=1;
+            if (counter==31) prox_estado = 3;
         end
         3: begin //A2
-            counter = counter_ff + 1;
-            if (counter_ff==5 && cod_i==1) Ax_lido[5] = 1;
-            if (counter_ff==21 && cod_i==1) Ax_lido[4] = 1;
-            if (counter_ff==31) begin
-                counter = 0;
-                prox_estado = 4;
-            end
+            Dx = 4'b0;
+            if (counter==7 && cod_i==1) Ax_lido[5] = 1;
+            if (counter==24 && cod_i==1) Ax_lido[4] = 1;
+            if (counter==31) prox_estado = 4;
         end
         4: begin //A3
-            counter = counter_ff + 1;
-            if (counter_ff==5 && cod_i==1) Ax_lido[7] = 1;
-            if (counter_ff==21 && cod_i==1) Ax_lido[6] = 1;
-            if (counter_ff==31) begin
-                counter = 0;
-                prox_estado = 5;
-            end
+            Dx = 4'b0;
+            if (counter==7 && cod_i==1) Ax_lido[7] = 1;
+            if (counter==24 && cod_i==1) Ax_lido[6] = 1;
+            if (counter==31) prox_estado = 5;
         end
         5: begin //A4
-            counter = counter_ff + 1;
             Dx = 4'b0;
-            if (counter_ff==5 && cod_i==1) Ax_lido[9] = 1;
-            if (counter_ff==21 && cod_i==1) Ax_lido[8] = 1;
-            if (counter_ff==31) begin
-                counter = 0;
-                prox_estado = 6;
-            end
+            if (counter==7 && cod_i==1) Ax_lido[9] = 1;
+            if (counter==24 && cod_i==1) Ax_lido[8] = 1;
+            if (counter==31) prox_estado = 6;
         end
         6: begin //A5
-            counter = counter_ff + 1;
             Dx = 4'b0;
-            if (counter_ff==5 && cod_i==1) Ax_lido[11] = 1;
-            if (counter_ff==21 && cod_i==1) Ax_lido[10] = 1;
-            if (counter_ff==31) begin
-                counter = 0;
-                prox_estado = 7;
-            end
+            if (counter==7 && cod_i==1) Ax_lido[11] = 1;
+            if (counter==24 && cod_i==1) Ax_lido[10] = 1;
+            if (counter==31) prox_estado = 7;
         end
         7: begin //A6
-            counter = counter_ff + 1;
             Dx = 4'b0;
-            if (counter_ff==5 && cod_i==1) Ax_lido[13] = 1;
-            if (counter_ff==21 && cod_i==1) Ax_lido[12] = 1;
-            if (counter_ff==31) begin
-                counter = 0;
-                prox_estado = 8;
-            end
+            if (counter==7 && cod_i==1) Ax_lido[13] = 1;
+            if (counter==24 && cod_i==1) Ax_lido[12] = 1;
+            if (counter==31) prox_estado = 8;
         end
         8: begin //A7
-            counter = counter_ff + 1;
             Dx = 4'b0;
-            if (counter_ff==5 && cod_i==1) Ax_lido[15] = 1;
-            if (counter_ff==21 && cod_i==1) Ax_lido[14] = 1;
-            if (counter_ff==31) begin
-                counter = 0;
-                prox_estado = 9;
-            end
+            if (counter==7 && cod_i==1) Ax_lido[15] = 1;
+            if (counter==24 && cod_i==1) Ax_lido[14] = 1;
+            if (counter==31) prox_estado = 9;
         end
         9: begin //D3
-            counter = counter_ff + 1;
             Ax_lido = Ax_lido;
-            if (counter_ff==5 && cod_i==1) Dx[3] = 1;
-            if (counter_ff==31) begin
-                counter = 0;
-                prox_estado = 10;
-            end
+            if (counter==7 && cod_i==1) Dx[3] = 1;
+            if (counter==31) prox_estado = 10;
         end
         10: begin //D2
-            counter = counter_ff + 1;
             Ax_lido = Ax_lido;
-            if (counter_ff==5 && cod_i==1) Dx[2] = 1;
-            if (counter_ff==31) begin
-                counter = 0;
-                prox_estado = 11;
-            end
+            if (counter==7 && cod_i==1) Dx[2] = 1;
+            if (counter==31) prox_estado = 11;
         end
         11: begin //D1
-            counter = counter_ff + 1;
             Ax_lido = Ax_lido;
-            if (counter_ff==5 && cod_i==1) Dx[1] = 1;
-            if (counter_ff==31) begin
-                counter = 0;
-                prox_estado = 12;
-            end
+            if (counter==7 && cod_i==1) Dx[1] = 1;
+            if (counter==31) prox_estado = 12;
         end
         12: begin //D0
-            counter = counter_ff + 1;
             Ax_lido = Ax_lido;
-            if (counter_ff==5 && cod_i==1) Dx[0] = 1;
-            if (counter_ff==31) begin
-                counter = 0;
-                prox_estado = 13;
-            end
+            if (counter==7 && cod_i==1) Dx[0] = 1;
+            if (counter==31) prox_estado = 13;
         end
         13: begin //SYNC
-            counter = counter_ff + 1;
             Ax_lido = Ax_lido;
             Dx = Dx;
-            if (counter_ff==127) begin
-                counter = 0;
-                prox_estado = 14;
-            end
+            if (counter==127) prox_estado = 14;
         end
         14: begin //FIM
             prox_estado = 0;
