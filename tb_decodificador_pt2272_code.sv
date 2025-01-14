@@ -1,6 +1,12 @@
+/*
+Projeto Final de Lógica Digital
+Autor: Walber Florencio de Almeida
+CI Inovador - Polo UFC
+Testbench do codificador e decodificador trabalhando juntos
+*/
 `timescale 1ns/10ps
 
-module tb_codec();
+module tb_decodificador_pt2272();
     logic [7:0] A; 
     logic [3:0] D_dec, D_cod; 
     logic clk, reset, cod, dv;
@@ -31,14 +37,14 @@ module tb_codec();
     initial begin
         reset = 1; 
 
-        A = 8'b01z01z10; // endereco de entrada
+        A = 8'b11z01z10; // endereco de entrada
         D_cod = 4'b1011; // dado de entrada
         #334ns;
 
         reset = 0;
-        #50ms; // durante esse tempo, a tranmissão finaliza e começa outra logo em sequência
-
-        reset = 1; // o reset interrompe a tranmissão em andamento
+        #50ms; // durante esse tempo, a transmissão finaliza e começa outra logo em sequência
+        
+        reset = 1; // o reset interrompe a transmissão em andamento
         #1ms;
 
         $finish;
