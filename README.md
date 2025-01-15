@@ -26,6 +26,15 @@ O símbolo de SYNC dura 4 bits, sendo que apenas 1/8 de bit fica em nível lógi
 - decodificador_pt2272.sv: Recebe a forma de onda e interpreta para bits de endereço e dados;
 - gera_ax.sv: Transforma a entrada de bits trinários em valores binários de mais fácil entendimento;
 - oscilador.sv: Gera um ciclo do oscilador a cada 250 ciclos de clock;
-- tb_codec.sv: Testa o codificador e o decodificador funcionando em conjunto;
 - tb_codificador_pt2262.sv: Testa o codificador;
-- tb_decodificador_pt2272.sv: Testa o decodificador.
+- tb_decodificador_pt2272.sv: Testa o codificador e o decodificador funcionando em conjunto.
+
+## Como funciona?
+
+### Codificador
+
+Recebe como entrada os bits de endereço (A - 8 bits trinários) e os de dados (D - 4 bits), e a saída são a forma de onda codificada (cod_o), como saída serial, e o sinal sync que fica em alto durante a transmissão do bit sync.
+
+### Decodificador
+
+Recebe como entrada os bits de endereço (A - 8 bits trinários) e a forma de onda codificada (cod_i) serial, e tem como saída os bits de dados (D) e um bit de dado válido (dv) que fica em alto quando o endereço de entrada A é igual ao decodificado.
